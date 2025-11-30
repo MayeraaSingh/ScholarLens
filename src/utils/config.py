@@ -8,6 +8,10 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 from dataclasses import dataclass
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 @dataclass
@@ -46,7 +50,7 @@ class Config:
     
     # Google Gemini configuration
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-1.5-pro")
+    GEMINI_MODEL_NAME = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash")
     
     # Model configurations per agent type
     MODEL_CONFIGS: Dict[str, ModelConfig] = {

@@ -271,30 +271,80 @@ class BaseAgent(ABC):
         Returns:
             Generated text
         """
-        # TODO: Integrate Google Gemini LLM call here (ADK)
-        # Example structure:
-        #
-        # from google.generativeai import GenerativeModel
-        # model = GenerativeModel(self.config.GEMINI_MODEL_NAME)
-        # response = model.generate_content(
-        #     prompt,
-        #     generation_config={
-        #         'temperature': temperature,
-        #         'max_output_tokens': max_tokens
-        #     }
-        # )
-        # return response.text
+        import os
         
-        if self.logger:
-            self.logger.info(
-                f"LLM call placeholder",
-                agent=self.name,
-                prompt_length=len(prompt),
-                temperature=temperature,
-                max_tokens=max_tokens
+        api_key = os.getenv("GEMINI_API_KEY")
+        
+        # Check if API key is configured
+        if not api_key or api_key == "your_api_key_here" or not api_key.strip():
+            if self.logger:
+                self.logger.info(
+                    f"LLM call placeholder (no API key)",
+                    agent=self.name,
+                    prompt_length=len(prompt),
+                    temperature=temperature,
+                    max_tokens=max_tokens
+                )
+            return f"[LLM Response Placeholder for {self.name} - Set GEMINI_API_KEY to enable AI]"
+        
+        # Make real Gemini API call
+        try:
+            import google.generativeai as genai
+            
+            genai.configure(api_key=api_key)
+            
+            # Get model name from config
+            from src.utils import Config
+            model_name = Config.GEMINI_MODEL_NAME
+            
+            # Configure safety settings to be more permissive for academic content
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ]
+            
+            model = genai.GenerativeModel(
+                model_name,
+                safety_settings=safety_settings
             )
-        
-        return f"[LLM Response Placeholder for {self.name}]"
+            
+            generation_config = {
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+            }
+            
+            response = model.generate_content(
+                prompt,
+                generation_config=generation_config
+            )
+            
+            # Check if response was blocked
+            if not response.candidates or not response.candidates[0].content.parts:
+                finish_reason = response.candidates[0].finish_reason if response.candidates else "UNKNOWN"
+                if self.logger:
+                    self.logger.warning(f"Response blocked or empty. Finish reason: {finish_reason}")
+                return f"[Response blocked by safety filters - finish_reason: {finish_reason}]"
+            
+            if self.logger:
+                self.logger.info(
+                    f"LLM call successful",
+                    agent=self.name,
+                    prompt_length=len(prompt),
+                    response_length=len(response.text)
+                )
+            
+            return response.text
+            
+        except ImportError:
+            if self.logger:
+                self.logger.warning("google-generativeai not installed. Run: pip install google-generativeai")
+            return f"[LLM Error: google-generativeai not installed]"
+        except Exception as e:
+            if self.logger:
+                self.logger.error(f"LLM call failed: {e}")
+            return f"[LLM Error: {str(e)}]"
     
     def _format_prompt(self, template: str, **kwargs) -> str:
         """

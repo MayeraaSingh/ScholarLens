@@ -221,46 +221,226 @@ class PDFParser:
     
     def _extract_title(self, text: str, metadata: Dict[str, Any]) -> str:
         """Extract paper title from text or metadata."""
-        # Try PDF metadata first
+        # Try PDF metadata first (but validate it's not a file path)
         if 'pdf_title' in metadata and metadata['pdf_title']:
-            return metadata['pdf_title']
+            pdf_title = metadata['pdf_title'].strip()
+            # Skip if it's a file path or too generic
+            if not any(x in pdf_title.lower() for x in ['.dvi', '.tex', 'untitled', 'document', '\\']):
+                if len(pdf_title) > 10:
+                    return pdf_title
         
-        # Heuristic: title is usually the first non-empty line or largest text
+        # Split text into lines
         lines = [line.strip() for line in text.split('\n') if line.strip()]
-        if lines:
-            # Take first substantial line (not URL, not single word)
-            for line in lines[:10]:
-                if len(line) > 10 and not line.startswith('http'):
-                    return line
+        
+        # Skip common header/footer patterns
+        skip_patterns = [
+            r'^full terms',
+            r'^http[s]?://',
+            r'^issn:',
+            r'^\d+$',
+            r'^page \d+',
+            r'^doi:',
+            r'copyright',
+            r'^published',
+            r'^to cite',
+            r'^to link',
+            r'^article views',
+            r'^download',
+            r'^journal homepage',
+            r'^submit your',
+            r'^citing articles',
+            r'science and engineering$',  # Journal subtitle
+            r'catalysis reviews',  # Journal name
+            r'braz j med biol res',  # Brazilian journal
+            r'^\d+\s+braz j',  # Page number + journal abbreviation
+            r'^\(\d{4}\)',  # Year in parentheses like "(2013)"
+            r'\d{4}\).*,\s*\d+:\d+,\s*\d+-\d+',  # Citation format like "2013), 55:4, 369-453"
+            r'www\.',  # Website URLs
+            r'^\w+\s*&\s*\w+$',  # Simple names like "Terms & Conditions"
+        ]
+        
+        # Find the title - usually the first substantial line that's not metadata
+        potential_titles = []
+        for i, line in enumerate(lines[:50]):  # Check first 50 lines
+            # Skip if matches any skip pattern
+            if any(re.match(pattern, line.lower()) for pattern in skip_patterns):
+                continue
+            
+            # Skip very short or very long lines
+            if len(line) < 15 or len(line) > 200:
+                continue
+            
+            # Skip lines that are mostly numbers or special characters
+            if sum(c.isdigit() or not c.isalnum() for c in line) / len(line) > 0.5:
+                continue
+            
+            # This might be the title
+            potential_titles.append((i, line))
+        
+        # Collect all possible title candidates with multi-line continuation
+        # Only consider titles from first 15 lines to avoid picking up abstract text
+        title_candidates = []
+        
+        for idx, title in potential_titles:
+            if idx > 15:  # Don't look for titles beyond line 15
+                break
+                
+            # Check if it looks like a title (starts with capital, has multiple words)
+            words = title.split()
+            if len(words) >= 3:  # At least 3 words
+                # Check capitalization pattern (title case or sentence case)
+                caps = sum(1 for w in words if w and w[0].isupper())
+                if caps >= 2:  # At least 2 capitalized words
+                    candidate_title = title
+                    lines_added = 0
+                    
+                    # Check if the next line continues it (multi-line title)
+                    # Limit to 3 continuation lines to avoid abstract text
+                    for next_idx in range(idx + 1, min(idx + 4, len(lines))):
+                        if lines_added >= 3:  # Max 3 additional lines
+                            break
+                            
+                        next_line = lines[next_idx].strip()
+                        # Skip if too short or looks like metadata
+                        if len(next_line) < 5:
+                            continue
+                        if any(re.match(pattern, next_line.lower()) for pattern in skip_patterns):
+                            break
+                        
+                        # Stop if this looks like authors (has commas and "&" or "and", or has author initials pattern)
+                        if ',' in next_line:
+                            # Check for author patterns: "L.M. Name, F.O. Name"
+                            if re.search(r'[A-Z]\.[A-Z]\.?\s+[A-Z]', next_line):
+                                break  # Has initial pattern like "L.M. Araújo"
+                            # Check for multiple comma-separated names
+                            if ('&' in next_line or ' and ' in next_line.lower()):
+                                break
+                            # More than 2 commas usually means author list or affiliations
+                            if next_line.count(',') >= 3:
+                                break
+                        
+                        # Stop if ends with period (likely abstract)
+                        if next_line.endswith('.'):
+                            break
+                        
+                        # Check if this could be a title continuation (can start with lowercase in multi-line titles)
+                        if next_line:
+                            # Check if it's a reasonable continuation (not authors, not section heading)
+                            stop_words = ['abstract', 'introduction', 'keywords', 'doi:', 'issn', 'university', 'department', 'laboratory', 'correspondence']
+                            if not any(x in next_line.lower() for x in stop_words):
+                                # Check it's mostly title-like (not too many uppercase initials suggesting names)
+                                # Title words are usually full words, not initials
+                                words = next_line.split()
+                                single_letter_words = sum(1 for w in words if len(w) <= 2 and w.isupper())
+                                if single_letter_words < len(words) * 0.4:  # Less than 40% single letters
+                                    # Likely a title continuation
+                                    candidate_title += " " + next_line
+                                    lines_added += 1
+                                else:
+                                    break
+                            else:
+                                break  # Hit something else
+                        else:
+                            break
+                    
+                    # Only keep title candidates with reasonable length (10-200 chars)
+                    if 10 <= len(candidate_title) <= 200:
+                        title_candidates.append(candidate_title)
+        
+        # Return the longest title candidate (full titles are usually longer than running headers)
+        # But also prefer titles that appear earlier if lengths are similar
+        if title_candidates:
+            # Sort by length descending, but cap at reasonable differences
+            title_candidates_with_scores = []
+            for i, title in enumerate(title_candidates):
+                # Score: length bonus, but penalize if very far down in list
+                score = len(title) - (i * 5)  # Subtract 5 points per position
+                title_candidates_with_scores.append((score, title))
+            
+            title_candidates_with_scores.sort(reverse=True, key=lambda x: x[0])
+            return title_candidates_with_scores[0][1]
+        
+        # Fallback: return first potential title if any
+        if potential_titles:
+            return potential_titles[0][1]
         
         return "Untitled Paper"
     
     def _extract_authors(self, text: str) -> List[str]:
         """Extract author names from text."""
-        # Simple heuristic: look for lines after title, before abstract
-        # This is approximate and may need improvement
-        lines = text.split('\n')
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
         authors = []
         
-        # Look for common author patterns (names with commas, "and", etc.)
-        for i, line in enumerate(lines[:30]):  # Check first 30 lines
-            line = line.strip()
-            # Skip empty lines and lines that are too long (likely not authors)
-            if not line or len(line) > 200:
+        # Skip patterns that are not authors
+        skip_patterns = [
+            r'^full terms',
+            r'^http[s]?://',
+            r'^\d+$',
+            r'^issn:',
+            r'^doi:',
+            r'copyright',
+            r'^journal',
+            r'^published',
+            r'^to cite',
+            r'^article views',
+        ]
+        
+        # Look for author patterns in first 60 lines
+        found_title = False
+        for i, line in enumerate(lines[:60]):
+            # Skip unwanted patterns
+            if any(re.match(pattern, line.lower()) for pattern in skip_patterns):
                 continue
             
-            # Check if line looks like authors (has "and" or multiple commas)
-            if ' and ' in line.lower() or line.count(',') >= 1:
-                # Clean and split
-                author_text = line.replace(' and ', ',').replace('&', ',')
-                potential_authors = [a.strip() for a in author_text.split(',')]
-                # Filter out non-name patterns
-                for author in potential_authors:
-                    if 3 < len(author) < 50 and not author.startswith('http'):
-                        authors.append(author)
-                break
+            # Skip very short or very long lines
+            if len(line) < 5 or len(line) > 250:
+                continue
+            
+            # Look for author patterns after we've likely passed the title
+            # Authors often have: multiple names, commas, "and", "&"
+            if i > 5:  # Skip first few lines (likely title/journal)
+                # Check for author-like patterns
+                has_comma = ',' in line
+                has_and = ' and ' in line.lower() or ' & ' in line
+                has_multiple_caps = sum(1 for c in line if c.isupper()) >= 3
+                
+                # Strong author indicators
+                if (has_comma and has_and) or (has_comma and has_multiple_caps):
+                    # Clean and split
+                    author_text = line.replace(' and ', ',').replace(' & ', ',')
+                    potential_authors = [a.strip() for a in author_text.split(',')]
+                    
+                    # Filter and validate author names
+                    for author in potential_authors:
+                        # Must be reasonable length
+                        if not (5 <= len(author) <= 80):
+                            continue
+                        # Should have at least one space (first + last name)
+                        if ' ' not in author:
+                            continue
+                        # Should not contain URLs or numbers
+                        if 'http' in author.lower() or re.search(r'\d{4}', author):
+                            continue
+                        # Should mostly be letters
+                        if sum(c.isalpha() or c.isspace() for c in author) / len(author) > 0.7:
+                            authors.append(author)
+                    
+                    if authors:  # Found authors, stop searching
+                        break
         
-        return authors if authors else ["Unknown Author"]
+        # If no authors found, try to find a line with just capitalized names
+        if not authors:
+            for i, line in enumerate(lines[5:40]):  # Skip title area
+                # Look for lines with multiple capitalized words (potential author line)
+                words = line.split()
+                caps_words = [w for w in words if w and w[0].isupper() and len(w) > 1]
+                if 2 <= len(caps_words) <= 8:  # Reasonable number of name parts
+                    # Check if it looks like names (not too many non-letter chars)
+                    if sum(c.isalpha() or c.isspace() for c in line) / len(line) > 0.7:
+                        authors.append(line)
+                        break
+        
+        return authors if authors else ["Unknown Authors"]
     
     def _extract_abstract(self, text: str) -> str:
         """Extract abstract section from text."""

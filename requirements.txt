@@ -4,7 +4,7 @@
 python-dotenv>=1.0.0
 
 # LLM Integration
-# google-generativeai>=0.3.0  # Uncomment when adding Gemini integration
+google-generativeai>=0.3.0
 
 # PDF Processing
 PyMuPDF>=1.23.0
@@ -16,6 +16,11 @@ pydantic-settings>=2.1.0
 
 # Utilities
 pathlib>=1.0.1
+
+# Web API
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+python-multipart>=0.0.6
 
 # Optional: For future enhancements
 # langchain>=0.1.0
