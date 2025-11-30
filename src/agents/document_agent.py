@@ -9,9 +9,9 @@ import time
 from typing import Dict, Any, List
 from pathlib import Path
 
-from .base_agent import BaseAgent
-from ..tools import parse_pdf, clean_text
-from ..utils import get_logger
+from src.agents.base_agent import BaseAgent
+from src.tools import parse_pdf, clean_text
+from src.utils import get_logger
 
 
 class DocumentExtractorAgent(BaseAgent):

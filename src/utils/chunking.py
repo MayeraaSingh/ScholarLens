@@ -98,12 +98,14 @@ class TextChunker:
             chunks.append(chunk)
             
             # Move to next chunk with overlap
-            start_idx = end_idx - overlap_words
-            chunk_id += 1
+            next_start = end_idx - overlap_words
             
-            # Prevent infinite loop on small texts
-            if start_idx >= len(words) - overlap_words:
+            # Prevent infinite loop - ensure we're making progress
+            if next_start <= start_idx or end_idx >= len(words):
                 break
+                
+            start_idx = next_start
+            chunk_id += 1
         
         return chunks
     

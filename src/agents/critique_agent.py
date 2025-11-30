@@ -8,8 +8,8 @@ assumptions, limitations, biases, and reproducibility assessment.
 import time
 from typing import Dict, Any, List
 
-from .base_agent import BaseAgent
-from ..utils import get_logger
+from src.agents.base_agent import BaseAgent
+from src.utils import get_logger
 
 
 class CritiqueAgent(BaseAgent):

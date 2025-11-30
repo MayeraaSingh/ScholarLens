@@ -8,8 +8,8 @@ and extracts key findings from research papers.
 import time
 from typing import Dict, Any, List
 
-from .base_agent import BaseAgent
-from ..utils import get_logger, chunk_text
+from src.agents.base_agent import BaseAgent
+from src.utils import get_logger, chunk_text
 
 
 class SummaryAgent(BaseAgent):

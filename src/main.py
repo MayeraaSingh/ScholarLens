@@ -8,12 +8,9 @@ import sys
 import argparse
 from pathlib import Path
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent))
-
-from orchestrator import OrchestratorAgent
-from utils import config, main_logger, get_logger
-from memory import get_session_manager
+from src.orchestrator import OrchestratorAgent
+from src.utils import config, main_logger, get_logger
+from src.memory import get_session_manager
 
 
 def parse_arguments():

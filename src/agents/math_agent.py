@@ -8,9 +8,9 @@ and connects formal math to conceptual understanding.
 import time
 from typing import Dict, Any, List
 
-from .base_agent import BaseAgent
-from ..utils import get_logger
-from ..tools import clean_text
+from src.agents.base_agent import BaseAgent
+from src.utils import get_logger
+from src.tools import clean_text
 
 
 class MathAgent(BaseAgent):

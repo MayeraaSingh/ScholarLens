@@ -8,9 +8,9 @@ complexity analysis, and practical recommendations.
 import time
 from typing import Dict, Any, List
 
-from .base_agent import BaseAgent
-from ..utils import get_logger
-from ..tools import CodeExecutor
+from src.agents.base_agent import BaseAgent
+from src.utils import get_logger
+from src.tools import CodeExecutor
 
 
 class ImplementationAgent(BaseAgent):

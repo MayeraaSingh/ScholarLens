@@ -9,8 +9,8 @@ import time
 from typing import Dict, Any, List
 from datetime import datetime
 
-from .base_agent import BaseAgent
-from ..utils import get_logger, dict_to_markdown
+from src.agents.base_agent import BaseAgent
+from src.utils import get_logger, dict_to_markdown
 
 
 class AggregatorAgent(BaseAgent):

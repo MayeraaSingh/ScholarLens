@@ -10,7 +10,7 @@ import time
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 
-from agents import (
+from src.agents import (
     DocumentExtractorAgent,
     SummaryAgent,
     MethodologyAgent,
@@ -19,9 +19,9 @@ from agents import (
     ImplementationAgent,
     AggregatorAgent
 )
-from memory import SessionManager, get_session_manager
-from utils import get_logger, config, export_json, export_markdown
-from tools import parse_pdf
+from src.memory import SessionManager, get_session_manager
+from src.utils import get_logger, config, export_json, export_markdown
+from src.tools import parse_pdf
 
 
 class OrchestratorAgent:
